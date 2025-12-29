@@ -1,0 +1,15 @@
+2025-12-29 09:49:43.379 | main | INFO  | mx.baz.conciliaciones.operaciones.dao.Impl.UploadInfoDaoImpl | File read successfully: C:\CREDITOJOBS\BATCREDITO\application.properties
+2025-12-29 09:49:43.403 | main | INFO  | mx.baz.conciliaciones.operaciones.AppUploadInfo | Start the information loading process,
+2025-12-29 09:49:50.290 | main | INFO  | mx.baz.conciliaciones.operaciones.AppUploadInfo | Connected to database successfully
+2025-12-29 09:49:50.290 | main | INFO  | mx.baz.conciliaciones.operaciones.dao.Impl.UploadInfoDaoImpl | Get data for path
+2025-12-29 09:49:50.851 | main | INFO  | mx.baz.conciliaciones.operaciones.AppUploadInfo | Route file: PathInfo(job=CARTERADELIM, ip=10.63.32.70, path=BackOfficeBaz\Operaciones\Operacion\Credito\MonitoreosDiarios, file=BAT1SB60.RESUMEN.CARTERADELIM.D, domain=PRODUCCIONBA, user=BusrConc, password=NuevaRepAln/094)
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | URI: \\10.63.32.70\BackOfficeBaz\Operaciones\Operacion\Credito\MonitoreosDiarios\BAT1SB60.RESUMEN.CARTERADELIM.D251228
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | URN: \\10.63.32.70\BackOfficeBaz\Operaciones\Operacion\Credito\MonitoreosDiarios
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | IP: 10.63.32.70
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | Path: BackOfficeBaz\Operaciones\Operacion\Credito\MonitoreosDiarios
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | File: BAT1SB60.RESUMEN.CARTERADELIM.D251228
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | User and Domain: PRODUCCIONBA\BusrConc
+2025-12-29 09:49:50.960 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | Command: net use A: \\10.63.32.70\BackOfficeBaz\Operaciones\Operacion\Credito\MonitoreosDiarios NuevaRepAln/094 /user:PRODUCCIONBA\BusrConc
+2025-12-29 09:49:56.082 | main | INFO  | mx.baz.conciliaciones.operaciones.utils.FSConn | Success conection to network drive: true
+2025-12-29 09:50:23.537 | main | INFO  | mx.baz.conciliaciones.operaciones.dao.Impl.UploadInfoDaoImpl | Initializing file reading process...
+2025-12-29 09:52:19.015 | HikariPool-1 housekeeper | WARN  | com.zaxxer.hikari.pool.HikariPool | HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=1m9s810ms388µs700ns).
