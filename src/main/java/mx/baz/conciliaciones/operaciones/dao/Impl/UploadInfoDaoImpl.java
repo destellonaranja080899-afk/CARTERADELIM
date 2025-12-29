@@ -83,6 +83,7 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 		}
 	}
 
+
 	public boolean uploadInfoMultithreaded(Connection ignored, String uri, HikariConfig config) {
 
 		final int parentBatchSize = 10_000;
@@ -230,9 +231,10 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 				if (counter % childBatchSize == 0) {
 					ps.executeBatch();
 					ps.clearBatch();
-					logger.info("Batch",counter);
+
 				}
 			}
+			logger.info("Rows",rows.size());
 			if (counter % childBatchSize != 0)
 				ps.executeBatch();
 			con.commit();
