@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class AppUploadInfo {
     private static final Logger logger = LogManager.getLogger(AppUploadInfo.class);
 
+
     public static void main(String[] args) throws Exception {
         ServiceImpl impl = new ServiceImpl();
         ConexionParametrizada conexion = impl.loadMySQLConfig();
