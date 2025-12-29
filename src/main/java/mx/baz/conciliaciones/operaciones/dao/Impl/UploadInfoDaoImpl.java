@@ -11,12 +11,15 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import mx.baz.conciliaciones.operaciones.configs.GlobalConfig;
@@ -80,59 +83,100 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 		}
 	}
 
-	public boolean uploadInfoMultithreaded(Connection con, String uri, HikariConfig config) {
-		boolean success = false;
-		int parentBatchSize = 5000;
-		int maxThreads = 5;
-		ExecutorService executor = Executors.newFixedThreadPool(maxThreads);
+	public boolean uploadInfoMultithreaded(Connection ignored, String uri, HikariConfig config) {
+
+		final int parentBatchSize = 10_000;
+		final int workers = 2;
+
+		BlockingQueue<List<String[]>> queue = new ArrayBlockingQueue<>(10);
+		ExecutorService executor = Executors.newFixedThreadPool(workers + 1);
 		HikariDataSource hikariDataSource = new HikariDataSource(config);
-		CompletionService<Integer> completionService = new ExecutorCompletionService<>(executor);
-		int submittedTasks = 0;
-		try (BufferedReader reader = new BufferedReader(new FileReader(uri))) {
-			List<String[]> chunk = (List)new ArrayList<>(parentBatchSize);
-			logger.info(messages.getProperty("FILE_READ_START"));
-			String line;
-			while ((line = reader.readLine()) != null) {
-				String[] fields = line.split(";");
-				chunk.add(fields);
-				if (chunk.size() == parentBatchSize) {
-					List<String[]> toInsert = (List)new ArrayList<>(chunk);
-					completionService.submit(() -> Integer.valueOf(insertBatch((DataSource)hikariDataSource, toInsert)));
-					submittedTasks++;
-					chunk.clear();
+
+		logger.info("Threads activos: {}", workers + 1);
+		logger.info(messages.getProperty("FILE_READ_START"));
+
+		try {
+
+			// =========================
+			// PRODUCTOR (LECTOR)
+			// =========================
+			executor.execute(() -> {
+				try (BufferedReader reader = new BufferedReader(new FileReader(uri))) {
+
+					List<String[]> chunk = new ArrayList<>(parentBatchSize);
+					String line;
+
+					while ((line = reader.readLine()) != null) {
+						chunk.add(fastSplit(line, ';'));
+
+						if (chunk.size() == parentBatchSize) {
+							queue.put(chunk);   //  backpressure real
+							chunk = new ArrayList<>(parentBatchSize);
+						}
+					}
+
+					if (!chunk.isEmpty()) {
+						queue.put(chunk);
+					}
+
+					// señal de fin para los workers
+					for (int i = 0; i < workers; i++) {
+						queue.put(Collections.emptyList());
+					}
+
+				} catch (Exception e) {
+					logger.error(messages.getProperty("FILE_READ_ERROR"), e);
 				}
+			});
+
+			// =========================
+			// CONSUMIDORES (INSERTS)
+			// =========================
+			for (int i = 0; i < workers; i++) {
+				executor.execute(() -> {
+					try {
+						while (true) {
+							List<String[]> rows = queue.take();
+
+							if (rows.isEmpty()) {
+								break;
+							}
+
+							insertBatch(hikariDataSource, rows);
+						}
+					} catch (Exception e) {
+						logger.error(messages.getProperty("error_insert_batch"), e);
+					}
+				});
 			}
-			if (!chunk.isEmpty()) {
-				List<String[]> toInsert = (List)new ArrayList<>(chunk);
-				completionService.submit(() -> Integer.valueOf(insertBatch((DataSource)hikariDataSource, toInsert)));
-				submittedTasks++;
-			}
-			int totalInserted = 0;
-			for (int i = 0; i < submittedTasks; i++) {
-				try {
-					Future<Integer> f = completionService.take();
-					totalInserted += ((Integer)f.get()).intValue();
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-				} catch (ExecutionException e) {
-					logger.error(messages.getProperty("TASK_FAILED") + e.getMessage());
-				}
-			}
-			logger.info(messages.getProperty("FILE_READ_COMPLETE"));
-			logger.info(messages.getProperty("count_rows") + totalInserted);
-			success = true;
-		} catch (IOException e) {
-			logger.error(messages.getProperty("FILE_READ_ERROR") + e.getMessage());
-		} finally {
+
 			executor.shutdown();
-			try {
-				executor.awaitTermination(2L, TimeUnit.HOURS);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
+			executor.awaitTermination(2, TimeUnit.HOURS);
+
+			logger.info(messages.getProperty("FILE_READ_COMPLETE"));
+			return true;
+
+		} catch (Exception e) {
+			logger.error("Error general en carga", e);
+			return false;
+		} finally {
+			hikariDataSource.close();
+		}
+	}
+	private static String[] fastSplit(String line, char delimiter) {
+		List<String> result = new ArrayList<>();
+		int start = 0;
+
+		for (int i = 0; i < line.length(); i++) {
+			if (line.charAt(i) == delimiter) {
+				result.add(line.substring(start, i));
+				start = i + 1;
 			}
 		}
-		return success;
+		result.add(line.substring(start));
+		return result.toArray(new String[0]);
 	}
+
 
 	private int insertBatch(DataSource dataSource, List<String[]> rows) {
 		String[] selectedColumns = messages.getProperty("columns").split(",");
@@ -142,11 +186,11 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 		String COLUMNS = messages.getProperty("columns");
 		int expectedCols = countColumns(COLUMNS);
 		String sql = "INSERT INTO " + messages.getProperty("table_and_schema") + " (" + COLUMNS + ") VALUES (" + String.join(",", Collections.nCopies(expectedCols, "?")) + ")";
-
+		int yyyymmdd = Integer.parseInt(LocalDate.now().minusDays(1).format(DateTimeFormatter.BASIC_ISO_DATE));
 		try(Connection con = dataSource.getConnection();
 			PreparedStatement ps = con.prepareStatement(sql)) {
 			con.setAutoCommit(false);
-			int childBatchSize = 500;
+			int childBatchSize = 2000;
 			int counter = 0;
 			for (String[] row : rows) {
 				int paramIndex = 1;
@@ -161,10 +205,6 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 					}
 
 					if ("fifecha".equalsIgnoreCase(col)) {
-						int yyyymmdd = Integer.parseInt(
-								LocalDate.now().minusDays(1)
-										.format(DateTimeFormatter.BASIC_ISO_DATE)
-						);
 						ps.setInt(paramIndex++, yyyymmdd);
 						continue;
 					}
@@ -190,13 +230,13 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 				if (counter % childBatchSize == 0) {
 					ps.executeBatch();
 					ps.clearBatch();
+					logger.info("Batch",counter);
 				}
 			}
 			if (counter % childBatchSize != 0)
 				ps.executeBatch();
 			con.commit();
 			inserted = counter;
-			logger.info(messages.getProperty("insert") + rows.size() + messages.getProperty("cols_pro"));
 		} catch (SQLException e) {
 			logger.error(messages.getProperty("error_insert_batch") + e.getMessage());
 		}
