@@ -17,10 +17,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import mx.baz.conciliaciones.operaciones.configs.GlobalConfig;
 import mx.baz.conciliaciones.operaciones.dao.IUploadInfoDao;
@@ -86,8 +82,8 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 
 	public boolean uploadInfoMultithreaded(Connection ignored, String uri, HikariConfig config) {
 
-		final int parentBatchSize = 10_000;
-		final int workers = 2;
+		final int parentBatchSize = 12_000;
+		final int workers = 3;
 
 		BlockingQueue<List<String[]>> queue = new ArrayBlockingQueue<>(10);
 		ExecutorService executor = Executors.newFixedThreadPool(workers + 1);
@@ -102,7 +98,7 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 			// PRODUCTOR (LECTOR)
 			// =========================
 			executor.execute(() -> {
-				try (BufferedReader reader = new BufferedReader(new FileReader(uri))) {
+				try (BufferedReader reader = new BufferedReader(new FileReader(uri), 16 * 1024 * 1024)) {
 
 					List<String[]> chunk = new ArrayList<>(parentBatchSize);
 					String line;
@@ -144,6 +140,7 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 							}
 
 							insertBatch(hikariDataSource, rows);
+							rows.clear();
 						}
 					} catch (Exception e) {
 						logger.error(messages.getProperty("error_insert_batch"), e);
