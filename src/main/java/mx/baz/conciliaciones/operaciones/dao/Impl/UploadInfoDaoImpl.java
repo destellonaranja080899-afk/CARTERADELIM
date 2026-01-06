@@ -83,13 +83,13 @@ public class UploadInfoDaoImpl implements IUploadInfoDao {
 	public boolean uploadInfoMultithreaded(Connection ignored, String uri, HikariConfig config) {
 
 		final int parentBatchSize = 12_000;
-		final int workers = 3;
+		final int workers = 4;
 
 		BlockingQueue<List<String[]>> queue = new ArrayBlockingQueue<>(10);
-		ExecutorService executor = Executors.newFixedThreadPool(workers + 1);
+		ExecutorService executor = Executors.newFixedThreadPool(workers);
 		HikariDataSource hikariDataSource = new HikariDataSource(config);
 
-		logger.info("Threads activos: {}", workers + 1);
+		logger.info("Threads activos: {}", workers);
 		logger.info(messages.getProperty("FILE_READ_START"));
 
 		try {
